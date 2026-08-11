@@ -67,11 +67,42 @@ function answerOrder(q){let key='q'+q.n;if(!state.answerOrders[key]){let base=[.
 function currentQ(){return QUESTIONS[activeOrder()[state.index]];}
 function phaseName(){return state.testMode&&state.look===3?'LOOK 3 • TEST '+state.testSize:'LOOK '+state.look;}
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+const PROMPTS_WITH_BLANKS={
+  5:"Maximum landing gear and landing light extended airspeed limits are ____ and ____, respectfully.",
+  11:"Static propeller feathering is limited to ____ cycles (feather to reverse and back to feather). Feathering is limited to ____ commands (fire handle pulled or prop control to feather). Upon reaching the limit, no further static propeller feathering cycles or feathering commands should be attempted until the engine has been started and run for at least 10 minutes above LSGI.",
+  17:"The APU must be on speed and warmed up a minimum of ____ before applying a bleed air load for normal operations and ____ when ambient temperatures are below -26 C.",
+  18:"If APU EGT exceeds ____ degrees C for longer than ____ seconds, the APU OVERTEMP ACAWS alerts the crew to reduce APU loading.",
+  24:"The minimum batteries voltage allowed for takeoff is ____ VDC. Replace battery if voltage is less than ____ VDC. If between these values, recharge or replace the battery and re-run the test.",
+  35:"For approaches when icing conditions have been encountered within 6 minutes of landing, increase approach and threshold speeds with 100% flaps by ____ knots, approach and threshold speeds with 50% flaps by ____ knots and approach and threshold speeds with 0% flaps by ____ knots.",
+  37:"When performing cross-ship manifold priming, ensure FUEL PRESS indicator reads ____ PSI when the No 1 MAIN transfer switch is placed to FROM and the X SHIP switch is opened. Check FUEL PRESS indicator decreases approximately ____ PSI when the No 4 MAIN transfer switch is placed to TO.",
+  49:"If hot brakes are suspected, the area on both sides of the wheel will be cleared of personnel and equipment for at least ____ feet. If conditions require personnel to be close to any overheated wheel, approach should be from ____.",
+  50:"Peak temperatures occur in the brake assembly from approximately ____ minutes and in the wheel and tire assembly from approximately ____ minutes after a maximum braking operation.",
+  51:"When using a ground check point to check VOR/TACAN accuracy, the bearing pointer/CDI error cannot exceed +/- ____ degrees and the TACAN distance must be within ____ NM or ____ percent of the distance to the facility.",
+  85:"If planning an air start with Fire Handle In and the propeller stopped (rotation = 3% NP) you must complete the air start within ____ with NG < 7% or within ____ with NG >= 7%.",
+  87:"During approach with two engines inoperative, the FLAPS lever must be placed to at least ____ when below ____.",
+  114:"When the flaps are extended more than approximately ____ percent and the landing gear is not down and locked, the landing gear warning audio will sound. It cannot be silenced until the landing gear is down and locked or the flaps are repositioned to less than ____ percent.",
+  121:"The C-130J oxygen system uses ____ oxygen and the manual shutoff valve is located on the ____ side of the cargo compartment forward bulkhead.",
+  172:"Basic crew flight duty period (FDP) is limited to ____ hours; ____ hours when both autopilots are inoperative or neither autopilot can be coupled to the Flight Director.",
+  173:"C-130J crews complete all tactical events in the first ____ hours (____ hours if approved by the PIC).",
+  176:"Any crewmember seeing a deviation of heading (+/- ____ degrees), airspeed (+/- ____ knots), or altitude (+/- ____ feet), and no attempt being made to correct the deviation will immediately notify the PF.",
+  184:"If no RVR readout is available for the departure runway, visibility must be reported to be ____. When weather is below approach and landing minimums (ceiling or visibility), ____.",
+  186:"Flights into areas of forecast or reported ____ turbulence are prohibited. Do not fly into an area of known or forecast ____ mountain wave turbulence.",
+  190:"Minimum runway length for 50% flap flight idle touch-and-go landings is ____ feet. Minimum runway length for all other touch-and-go landings is ____ feet.",
+  192:"Plan a ____ fuel reserve at destination or alternate (when an alternate is required). Calculate an additional ____ of contingency fuel. Reserve and contingency fuel will be computed using consumption rates providing maximum endurance at ____ feet MSL (____ feet MSL for remote destinations)."
+};
+function displayQuestion(q){return PROMPTS_WITH_BLANKS[q.n]||q.question;}
 function supportingCorrectAnswers(q){
   const text=q.options[q.answer]||'';
-  const both=text.match(/\bboth\s+([A-E])\s*(?:and|&)\s*([A-E])\b/i);
-  if(both){return [both[1],both[2]].map(x=>x.toUpperCase().charCodeAt(0)-65).filter(i=>i>=0&&i<q.options.length&&i!==q.answer);}
-  if(/\ball\s+(?:of\s+)?the\s+above\b/i.test(text)){return [...Array(q.answer).keys()];}
+  // Strip the option label (e.g. "D.") so compound-answer wording can be
+  // recognized consistently: "Both A and C", "A or B", "B or C", etc.
+  const body=text.replace(/^\s*[A-E]\.\s*/i,'').trim();
+  const compound=body.match(/^(?:both\s+)?([A-E])\s*(?:and|&|or)\s*([A-E])\b/i);
+  if(compound){
+    return [compound[1],compound[2]]
+      .map(x=>x.toUpperCase().charCodeAt(0)-65)
+      .filter(i=>i>=0&&i<q.options.length&&i!==q.answer);
+  }
+  if(/\ball\s+(?:of\s+)?the\s+above\b/i.test(body)){return [...Array(q.answer).keys()];}
   return [];
 }
 function render(){
@@ -80,7 +111,7 @@ function render(){
   document.getElementById('phasePill').textContent=phaseName();document.getElementById('countPill').textContent=(state.index+1)+' / '+len;document.getElementById('progress').style.width=((state.index+1)/len*100)+'%';
   document.getElementById('backBtn').disabled=state.index===0;
   document.getElementById('nextBtn').textContent=(state.index===len-1)?(state.testMode?'Finish Test':state.look<3?'Begin Look '+(state.look+1):'Finish'):'Next';
-  let html='<div class="qnum">MQF '+String(q.n).padStart(3,'0')+' / '+TOTAL+(state.testMode?' · RANDOM TEST':'')+'</div><div class="question">'+escapeHtml(q.question)+'</div>';
+  let html='<div class="qnum">MQF '+String(q.n).padStart(3,'0')+' / '+TOTAL+(state.testMode?' · RANDOM TEST':'')+'</div><div class="question">'+escapeHtml(displayQuestion(q))+'</div>';
   const supporting=supportingCorrectAnswers(q);
   if(state.look===1){
     html+='<div class="caption">Correct answer</div><div class="answerList"><div class="answer correct">'+escapeHtml(q.options[q.answer])+'</div>';
