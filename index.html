@@ -14,7 +14,7 @@ button.pill{font-family:inherit;cursor:pointer}.phase{color:var(--accent);border
 .qnum{font-size:12px;font-weight:800;color:var(--green);letter-spacing:.08em;text-transform:uppercase}.question{font-size:24px;line-height:1.18;font-weight:800;white-space:pre-wrap}
 .caption{font-size:12px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.08em;margin-top:4px}
 .answerList{display:flex;flex-direction:column;gap:10px;margin-top:2px}.answer{width:100%;text-align:left;border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:16px;padding:14px 14px;font-size:18px;line-height:1.22;font-weight:650;min-height:54px}
-.answer.correct{background:#102a1b;border-color:var(--green);box-shadow:0 0 0 1px rgba(81,209,122,.45) inset;color:#e8fff0}.answer.wrong{background:#301719;border-color:var(--red)}.answer.dim{opacity:.60}
+.answer.correct{background:#102a1b;border-color:var(--green);box-shadow:0 0 0 1px rgba(81,209,122,.45) inset;color:#e8fff0}.answer.ghostCorrect{background:#20252d;border-color:#626d79;color:#c8d0d8;opacity:.88}.answer.wrong{background:#301719;border-color:var(--red)}.answer.dim{opacity:.52}
 .answer.selectable{cursor:pointer;touch-action:manipulation}.answer:disabled{opacity:1}.ref{margin-top:auto;color:var(--muted);font-size:12px;line-height:1.25;border-top:1px solid var(--line);padding-top:12px}
 .nav{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}.nav button,.primary{border:1px solid var(--line);background:var(--btn);color:var(--text);border-radius:16px;padding:15px;font-size:17px;font-weight:800}
 .primary{background:#10202a;border-color:#24556d;color:#dff6ff;width:100%;margin-top:10px}.secondary{border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:14px;padding:12px;font-size:16px;font-weight:750;width:100%}.nav button:active,.answer:active,.primary:active,.secondary:active,.iconbtn:active,.phase:active{transform:translateY(1px)}
@@ -67,6 +67,13 @@ function answerOrder(q){let key='q'+q.n;if(!state.answerOrders[key]){let base=[.
 function currentQ(){return QUESTIONS[activeOrder()[state.index]];}
 function phaseName(){return state.testMode&&state.look===3?'LOOK 3 • TEST '+state.testSize:'LOOK '+state.look;}
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+function supportingCorrectAnswers(q){
+  const text=q.options[q.answer]||'';
+  const both=text.match(/\bboth\s+([A-E])\s*(?:and|&)\s*([A-E])\b/i);
+  if(both){return [both[1],both[2]].map(x=>x.toUpperCase().charCodeAt(0)-65).filter(i=>i>=0&&i<q.options.length&&i!==q.answer);}
+  if(/\ball\s+(?:of\s+)?the\s+above\b/i.test(text)){return [...Array(q.answer).keys()];}
+  return [];
+}
 function render(){
   const card=document.getElementById('card'),q=currentQ(),order=activeOrder(),len=order.length;
   if(!q){state.index=0;state.testMode=false;save();return render();}
@@ -74,8 +81,16 @@ function render(){
   document.getElementById('backBtn').disabled=state.index===0;
   document.getElementById('nextBtn').textContent=(state.index===len-1)?(state.testMode?'Finish Test':state.look<3?'Begin Look '+(state.look+1):'Finish'):'Next';
   let html='<div class="qnum">MQF '+String(q.n).padStart(3,'0')+' / '+TOTAL+(state.testMode?' · RANDOM TEST':'')+'</div><div class="question">'+escapeHtml(q.question)+'</div>';
-  if(state.look===1){html+='<div class="caption">Correct answer</div><div class="answerList"><div class="answer correct">'+escapeHtml(q.options[q.answer])+'</div></div>';}
-  else if(state.look===2){html+='<div class="caption">Recognize the correct response</div><div class="answerList">';for(const oi of answerOrder(q)){html+='<div class="answer '+(oi===q.answer?'correct':'dim')+'">'+escapeHtml(q.options[oi])+'</div>';}html+='</div>';}
+  const supporting=supportingCorrectAnswers(q);
+  if(state.look===1){
+    html+='<div class="caption">Correct answer</div><div class="answerList"><div class="answer correct">'+escapeHtml(q.options[q.answer])+'</div>';
+    for(const oi of supporting){html+='<div class="answer ghostCorrect">'+escapeHtml(q.options[oi])+'</div>';}
+    html+='</div>';
+  }
+  else if(state.look===2){
+    html+='<div class="caption">Recognize the correct response</div><div class="answerList">';
+    for(const oi of answerOrder(q)){let cls=oi===q.answer?'correct':supporting.includes(oi)?'ghostCorrect':'dim';html+='<div class="answer '+cls+'">'+escapeHtml(q.options[oi])+'</div>';}html+='</div>';
+  }
   else{
     const resp=state.responses[q.n];const reveal=(state.feedback!=='end'&&resp);const both=state.feedback==='both';
     if(both){const sc=score();html+='<div class="stats"><span>Correct: '+sc.correct+'</span><span>Missed: '+sc.wrong+'</span></div>';}
